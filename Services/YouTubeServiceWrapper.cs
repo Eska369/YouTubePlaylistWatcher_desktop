@@ -1,5 +1,6 @@
 ﻿using Google.Apis.Services;
 using Google.Apis.YouTube.v3;
+using Google.Apis.YouTube.v3.Data;
 using Microsoft.Extensions.Logging;
 
 namespace YouTubePlaylistWatcher_desktop.Services;
@@ -8,7 +9,7 @@ public interface IYouTubeServiceWrapper
 {
     Task<string> GetCurrentChannelAsync();
     Task<PlaylistsResource.ListRequest> GetPlaylistAsync(string playlistId);
-    Task<PlaylistsResource.ListRequest> ListPlaylistsAsync();
+    Task<List<Playlist>> ListPlaylistsAsync();
 }
 
 public class YouTubeServiceWrapper : IYouTubeServiceWrapper
@@ -25,13 +26,18 @@ public class YouTubeServiceWrapper : IYouTubeServiceWrapper
         _partsString = string.Join(",", _parts);
     }
 
-    public async Task<string> GetCurrentChannelAsync()
+    private async Task<YouTubeService> InitializeYouTubeService()
     {
-        var youtubeService = new YouTubeService(new BaseClientService.Initializer()
+        return new YouTubeService(new BaseClientService.Initializer()
         {
             HttpClientInitializer = await _googleAuthService.Authenticate(),
             ApplicationName = "YouTube Playlist Fetcher"
         });
+    }
+
+    public async Task<string> GetCurrentChannelAsync()
+    {
+        var youtubeService = await InitializeYouTubeService();
 
         var channelsRequest = youtubeService.Channels.List("snippet");
         channelsRequest.Mine = true;
@@ -45,11 +51,7 @@ public class YouTubeServiceWrapper : IYouTubeServiceWrapper
 
     public async Task<PlaylistsResource.ListRequest> GetPlaylistAsync(string playlistId)
     {
-        var youtubeService = new YouTubeService(new BaseClientService.Initializer()
-        {
-            HttpClientInitializer = await _googleAuthService.Authenticate(),
-            ApplicationName = "YouTube Playlist Fetcher"
-        });
+        var youtubeService = await InitializeYouTubeService();
 
         var playlistsRequest = youtubeService.Playlists.List(_partsString);
         playlistsRequest.MaxResults = 50;
@@ -62,24 +64,36 @@ public class YouTubeServiceWrapper : IYouTubeServiceWrapper
         return playlistsRequest;
     }
 
-    public async Task<PlaylistsResource.ListRequest> ListPlaylistsAsync()
+    public async Task<List<Playlist>> ListPlaylistsAsync()
     {
-        var youtubeService = new YouTubeService(new BaseClientService.Initializer()
-        {
-            HttpClientInitializer = await _googleAuthService.Authenticate(),
-            ApplicationName = "YouTube Playlist Fetcher"
-        });
+        var youtubeService = await InitializeYouTubeService();
+
+        var result = new List<Playlist>();
 
         var playlistsRequest = youtubeService.Playlists.List(_partsString);
         playlistsRequest.MaxResults = 50;
+        playlistsRequest.PageToken = null;
+        string? nextPageToken = null;
         playlistsRequest.ChannelId = MemoryStorage.UserId;
-        var playlistsResponse = await playlistsRequest.ExecuteAsync();
+
+        do
+        {
+            if (nextPageToken != null)
+            {
+                playlistsRequest.PageToken = nextPageToken;
+            }
+
+            var playlistsResponse = await playlistsRequest.ExecuteAsync();
+            result.AddRange(playlistsResponse.Items);
+            nextPageToken = playlistsResponse.NextPageToken;
+        } while (nextPageToken != null);
+
         _logger.LogInformation("Your playlists:");
-        foreach (var playlist in playlistsResponse.Items)
+        foreach (var playlist in result)
         {
             Console.WriteLine(playlist.Snippet.Title + " (ID: " + playlist.Id + ")");
         }
 
-        return playlistsRequest;
+        return result;
     }
 }

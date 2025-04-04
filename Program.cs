@@ -17,6 +17,7 @@ builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
 
 builder.Services.AddSingleton<IGoogleAuthService, GoogleAuthService>();
 builder.Services.AddScoped<IYouTubeServiceWrapper, YouTubeServiceWrapper>();
+builder.Services.AddScoped<IPlaylistService, PlaylistService>();
 
 var app = builder.Build();
 
@@ -24,7 +25,7 @@ var app = builder.Build();
 using var scope = app.Services.CreateScope();
 var services = scope.ServiceProvider;
 var youTubeServiceWrapper = services.GetRequiredService<IYouTubeServiceWrapper>();
+var playlistService = services.GetRequiredService<IPlaylistService>();
 MemoryStorage.UserId = await youTubeServiceWrapper.GetCurrentChannelAsync();
 
-await youTubeServiceWrapper.GetPlaylistAsync("");
-await youTubeServiceWrapper.ListPlaylistsAsync();
+await playlistService.FetchAndSavePlaylistsAsync();

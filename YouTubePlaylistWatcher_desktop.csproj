@@ -16,6 +16,7 @@
         <PrivateAssets>all</PrivateAssets>
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       </PackageReference>
+      <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.3" />
       <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.3" />
       <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.3" />
       <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
@@ -23,6 +24,12 @@
 
     <ItemGroup>
       <None Update="client_secrets.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="appsettings.Development.json">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+      <None Update="appsettings.json">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
     </ItemGroup>
