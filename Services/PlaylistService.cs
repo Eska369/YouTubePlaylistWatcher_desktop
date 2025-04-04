@@ -1,6 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
+﻿using Google.Apis.YouTube.v3.Data;
+using Microsoft.EntityFrameworkCore;
 using YouTubePlaylistWatcher_desktop.Models;
+using Playlist = YouTubePlaylistWatcher_desktop.Models.Playlist;
 
 namespace YouTubePlaylistWatcher_desktop.Services;
 
@@ -11,13 +12,11 @@ public interface IPlaylistService
 
 public class PlaylistService : IPlaylistService
 {
-    private readonly ILogger<PlaylistService> _logger;
     private readonly IYouTubeServiceWrapper _youtubeService;
     private readonly IAppDbContext _db;
 
-    public PlaylistService(ILogger<PlaylistService> logger, IYouTubeServiceWrapper youtubeService, IAppDbContext db)
+    public PlaylistService(IYouTubeServiceWrapper youtubeService, IAppDbContext db)
     {
-        _logger = logger;
         _youtubeService = youtubeService;
         _db = db;
     }
@@ -25,6 +24,10 @@ public class PlaylistService : IPlaylistService
     public async Task FetchAndSavePlaylistsAsync()
     {
         var playlists = await _youtubeService.ListPlaylistsAsync();
+        // Positions below are not included in standard - needed to add them manualy
+        playlists.Add(new Google.Apis.YouTube.v3.Data.Playlist(){Id = "LL",Snippet = new PlaylistSnippet(){Title = "Liked Videos"}});
+        playlists.Add(new Google.Apis.YouTube.v3.Data.Playlist(){Id = "WL",Snippet = new PlaylistSnippet(){Title = "Watch Later"}});
+
         var currentPlaylists = await _db.Set<Playlist>().ToListAsync();
 
         foreach (var playlist in playlists)
@@ -40,10 +43,11 @@ public class PlaylistService : IPlaylistService
             }
         }
 
-        foreach (var existingPlaylist in currentPlaylists.Where(existingPlaylist => playlists.All(x => x.Id != existingPlaylist.Id)))
+        foreach (var existingPlaylist in currentPlaylists.Where(existingPlaylist =>
+                     playlists.All(x => x.Id != existingPlaylist.Id)))
         {
             //TODO notification about removed playlist - add flag to db to skip in next run
-            _logger.LogInformation("Removed playlist: {Title}", existingPlaylist.Title);
+            Console.WriteLine($"Removed playlist: {existingPlaylist.Title}");
         }
 
         await _db.SaveChangesAsync();
@@ -51,10 +55,10 @@ public class PlaylistService : IPlaylistService
 
     private async Task UpdatePlaylistAsync(Playlist existingPlaylist, Google.Apis.YouTube.v3.Data.Playlist playlist)
     {
-        existingPlaylist.ETag = playlist.ETag;
-        existingPlaylist.Title = playlist.Snippet.Title;
-        existingPlaylist.Description = playlist.Snippet.Description;
-        existingPlaylist.ChannelId = playlist.Snippet.ChannelId;
+        existingPlaylist.ETag = playlist.ETag ?? "__MISSING__";
+        existingPlaylist.Title = playlist.Snippet.Title ?? "__MISSING__";
+        existingPlaylist.Description = playlist.Snippet.Description ?? "__MISSING__";
+        existingPlaylist.ChannelId = playlist.Snippet.ChannelId ?? "__MISSING__";
 
         _db.Set<Playlist>().Update(existingPlaylist);
         await _db.SaveChangesAsync();
@@ -62,7 +66,7 @@ public class PlaylistService : IPlaylistService
         if (existingPlaylist.Title == "Favorites")
             return; // Favorites playlist every time returns new ETag for some reason
 
-        _logger.LogInformation("Updated playlist: {Title}", existingPlaylist.Title);
+        Console.WriteLine($"Updated playlist: {existingPlaylist.Title}");
     }
 
     private async Task AddPlaylistAsync(Google.Apis.YouTube.v3.Data.Playlist playlist)
@@ -70,14 +74,14 @@ public class PlaylistService : IPlaylistService
         var newEntry = new Playlist()
         {
             Id = playlist.Id,
-            ETag = playlist.ETag,
+            ETag = playlist.ETag ?? "__MISSING__",
             Title = playlist.Snippet.Title,
-            Description = playlist.Snippet.Description,
-            ChannelId = playlist.Snippet.ChannelId,
+            Description = playlist.Snippet.Description ?? "__MISSING__",
+            ChannelId = playlist.Snippet.ChannelId ?? "__MISSING__",
         };
 
         await _db.Set<Playlist>().AddAsync(newEntry);
         await _db.SaveChangesAsync();
-        _logger.LogInformation("Added new playlist: {Title}", newEntry.Title);
+        Console.WriteLine($"Added new playlist: {newEntry.Title}");
     }
 }

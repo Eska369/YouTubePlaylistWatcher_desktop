@@ -10,13 +10,14 @@ public interface IYouTubeServiceWrapper
     Task<string> GetCurrentChannelAsync();
     Task<PlaylistsResource.ListRequest> GetPlaylistAsync(string playlistId);
     Task<List<Playlist>> ListPlaylistsAsync();
+    Task<List<PlaylistItem>> ListVideosAsync(string playlistId);
 }
 
 public class YouTubeServiceWrapper : IYouTubeServiceWrapper
 {
     private readonly ILogger<YouTubeServiceWrapper> _logger;
     private readonly IGoogleAuthService _googleAuthService;
-    private readonly string[] _parts = ["snippet", "contentDetails", "localizations", "player", "status"];
+    private readonly string[] _parts = ["snippet", "contentDetails", "status"];
     private readonly string _partsString;
 
     public YouTubeServiceWrapper(ILogger<YouTubeServiceWrapper> logger, IGoogleAuthService googleAuthService)
@@ -93,6 +94,35 @@ public class YouTubeServiceWrapper : IYouTubeServiceWrapper
         {
             Console.WriteLine(playlist.Snippet.Title + " (ID: " + playlist.Id + ")");
         }
+
+        return result;
+    }
+
+    public async Task<List<PlaylistItem>> ListVideosAsync(string playlistId)
+    {
+        var youtubeService = await InitializeYouTubeService();
+
+        var result = new List<PlaylistItem>();
+
+        var playlistItems = youtubeService.PlaylistItems.List(_partsString);
+        playlistItems.MaxResults = 50;
+        playlistItems.PageToken = null;
+        string? nextPageToken = null;
+        playlistItems.PlaylistId = playlistId;
+
+        do
+        {
+            if (nextPageToken != null)
+            {
+                playlistItems.PageToken = nextPageToken;
+            }
+
+            var playlistItemListResponse = await playlistItems.ExecuteAsync();
+            result.AddRange(playlistItemListResponse.Items);
+            nextPageToken = playlistItemListResponse.NextPageToken;
+        } while (nextPageToken != null);
+
+        Console.WriteLine($"Fetched {result.Count} videos from playlist: " + playlistId);
 
         return result;
     }

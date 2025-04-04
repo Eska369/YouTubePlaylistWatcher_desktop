@@ -9,7 +9,7 @@ using YouTubePlaylistWatcher_desktop.Services;
 var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddDbContext<IAppDbContext, AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("postgresConnection")));
+    options.UseNpgsql(builder.Configuration.GetConnectionString("postgresConnection"))); //TODO migration to sqlite
 
 builder.Services.AddLogging();
 
@@ -18,6 +18,7 @@ builder.Services.AddSingleton<IConfiguration>(builder.Configuration);
 builder.Services.AddSingleton<IGoogleAuthService, GoogleAuthService>();
 builder.Services.AddScoped<IYouTubeServiceWrapper, YouTubeServiceWrapper>();
 builder.Services.AddScoped<IPlaylistService, PlaylistService>();
+builder.Services.AddScoped<IVideoService, VideoService>();
 
 var app = builder.Build();
 
@@ -26,6 +27,8 @@ using var scope = app.Services.CreateScope();
 var services = scope.ServiceProvider;
 var youTubeServiceWrapper = services.GetRequiredService<IYouTubeServiceWrapper>();
 var playlistService = services.GetRequiredService<IPlaylistService>();
+var videoService = services.GetRequiredService<IVideoService>();
 MemoryStorage.UserId = await youTubeServiceWrapper.GetCurrentChannelAsync();
 
 await playlistService.FetchAndSavePlaylistsAsync();
+await videoService.FetchAndSaveVideosAsync();
